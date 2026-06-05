@@ -14,6 +14,7 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -105,15 +106,10 @@ func runAgent(ctx context.Context, cfg config.Config, period time.Duration) erro
 	ctx, stop := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	// DCS — MemStore for the scaffold ; the etcd-backed implementation
-	// lands alongside the live integration test harness.
-	store := dcs.NewMemStore()
+	store := pickStore(cfg, log)
 	defer func() { _ = store.Close() }()
 
-	// iRODS server controller. The scaffold ships a FakeController
-	// that always reports Up=true ; the production controller (next
-	// milestone) shells out to `irods-grid status` + `iadmin lz`.
-	server := &irods.FakeController{NextStatus: irods.Status{Up: true, ZoneName: cfg.ZoneName}}
+	server := pickController(log)
 
 	apiSrv := api.New(cfg.APIAddr, cfg.NodeName, cfg.DC)
 	if err := apiSrv.Start(); err != nil {
@@ -140,4 +136,72 @@ func shutdown(s shutdowner) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	_ = s.Shutdown(ctx)
+}
+
+// pickStore selects the DCS backend at runtime.
+//
+//   - WEFT_HA_IRODS_ETCD=host:2379[,host:2379...] → EtcdStore (HA).
+//   - unset → fall back to --etcd flags ; still nothing → MemStore
+//     (dev / smoke tests ; NOT cross-replica).
+//
+// The split here lets the same binary smoke-boot in a single-host dev
+// VM (no etcd dep) and also run in production behind a 3-DC etcd
+// quorum, without a build-time toggle.
+func pickStore(cfg config.Config, log *slog.Logger) dcs.Store {
+	endpoints := envEndpoints("WEFT_HA_IRODS_ETCD")
+	if len(endpoints) == 0 && len(cfg.EtcdEndpoints) > 0 {
+		// Validate() requires at least one --etcd ; honour it as the
+		// fallback so a smoke install can stay flag-driven without
+		// touching the environment.
+		endpoints = cfg.EtcdEndpoints
+	}
+	if len(endpoints) == 0 {
+		log.Warn("DCS = MemStore (no etcd configured) ; NOT cross-replica")
+		return dcs.NewMemStore()
+	}
+	log.Info("DCS = etcd", "endpoints", endpoints, "zone", cfg.ZoneName)
+	return dcs.NewEtcdStore(endpoints, cfg.ZoneName, 15)
+}
+
+// pickController selects the iRODS Controller at runtime.
+//
+//   - WEFT_HA_IRODS_USE_REAL_CONTROLLER=1 → CommandController shelling
+//     out to irods-grid + iadmin.
+//   - unset → FakeController returning Up=true (smoke / unit tests).
+//
+// WEFT_HA_IRODS_GRID_BINARY / WEFT_HA_IRODS_IADMIN_BINARY override the
+// binary paths when set ; this is the seam the CI integration harness
+// uses to point at a fixture script that simulates irods-grid output.
+func pickController(log *slog.Logger) irods.Controller {
+	if os.Getenv("WEFT_HA_IRODS_USE_REAL_CONTROLLER") != "1" {
+		log.Warn("Controller = FakeController(Up=true) ; set WEFT_HA_IRODS_USE_REAL_CONTROLLER=1 to probe a real iRODS server")
+		return &irods.FakeController{NextStatus: irods.Status{Up: true, ZoneName: "weftZone"}}
+	}
+	c := irods.NewCommandController()
+	if p := os.Getenv("WEFT_HA_IRODS_GRID_BINARY"); p != "" {
+		c.GridBinary = p
+	}
+	if p := os.Getenv("WEFT_HA_IRODS_IADMIN_BINARY"); p != "" {
+		c.IAdminBinary = p
+	}
+	log.Info("Controller = CommandController",
+		"grid_binary", c.GridBinary, "iadmin_binary", c.IAdminBinary)
+	return c
+}
+
+// envEndpoints parses a comma-separated env var into a clean slice
+// (empty entries dropped).
+func envEndpoints(name string) []string {
+	raw := os.Getenv(name)
+	if raw == "" {
+		return nil
+	}
+	parts := strings.Split(raw, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if s := strings.TrimSpace(p); s != "" {
+			out = append(out, s)
+		}
+	}
+	return out
 }
