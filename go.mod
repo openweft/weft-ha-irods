@@ -6,7 +6,7 @@ go 1.26
 require github.com/spf13/cobra v1.10.2
 
 require (
-	github.com/openweft/weft-slognats v0.2.0
+	github.com/openweft/weft-slognats v0.3.0
 	go.etcd.io/etcd/client/v3 v3.6.12
 )
 
