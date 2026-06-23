@@ -7,9 +7,12 @@ name: release
 #   - push:tags ['v*']  : tag-driven release
 # NO push:main trigger — that's the whole point.
 #
-# The image is multi-arch (linux/amd64 + linux/arm64) ; the Dockerfile
-# at the repo root drives both stages. The agent binary is cross-built
-# pure-Go (CGO=0) so a single buildx invocation handles both arches.
+# Multi-arch via NATIVE runners (matrix split). The previous
+# single-job linux/arm64 build was QEMU-emulated and the
+# irods/externals (boost + clang16) cross-compile crushed it after
+# 3h+ — clang16 LLVM-template emulation either OOMed or
+# miscompiled. Native arm64 runners cut the build to ~30min and
+# remove the QEMU dependency entirely (rc3 post-mortem 2026-06-23).
 
 on:
   workflow_dispatch:
@@ -28,8 +31,21 @@ env:
   IMAGE: ghcr.io/${{ github.repository_owner }}/irods-ha
 
 jobs:
-  image:
-    runs-on: ubuntu-latest
+  # Per-arch build job. Each runs on a NATIVE runner — no QEMU,
+  # no cross-compilation of clang16. Pushes a digest-keyed image
+  # to GHCR ; the merge job below stitches them into a manifest.
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-latest
+            arch: amd64
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
+            arch: arm64
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -54,7 +70,6 @@ jobs:
           echo "commit=$(git rev-parse --short HEAD)" >>"$GITHUB_OUTPUT"
           echo "date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >>"$GITHUB_OUTPUT"
 
-      - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
 
       - uses: docker/login-action@v3
@@ -63,12 +78,13 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: build + push multi-arch image
+      - name: build + push by digest
+        id: push
         uses: docker/build-push-action@v6
         with:
           context: .
           file: Dockerfile
-          platforms: linux/amd64,linux/arm64
+          platforms: ${{ matrix.platform }}
           push: true
           provenance: false
           sbom: false
@@ -76,6 +92,63 @@ jobs:
             VERSION=${{ steps.tag.outputs.tag }}
             COMMIT=${{ steps.meta.outputs.commit }}
             DATE=${{ steps.meta.outputs.date }}
-          tags: |
-            ${{ env.IMAGE }}:${{ steps.tag.outputs.tag }}
-            ${{ env.IMAGE }}:latest
+          outputs: |
+            type=image,name=${{ env.IMAGE }},push-by-digest=true,name-canonical=true,push=true
+
+      - name: export digest
+        run: |
+          mkdir -p /tmp/digests
+          digest="${{ steps.push.outputs.digest }}"
+          touch "/tmp/digests/${digest#sha256:}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: digests-${{ matrix.arch }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  # Stitches the per-arch digests into the multi-arch manifest under
+  # both <tag> and 'latest'. Runs after all matrix jobs succeed.
+  merge:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: resolve tag
+        id: tag
+        run: |
+          set -euo pipefail
+          if [ -n "${{ inputs.tag }}" ]; then
+            echo "tag=${{ inputs.tag }}" >>"$GITHUB_OUTPUT"
+          elif [ "${{ github.ref_type }}" = "tag" ]; then
+            echo "tag=${{ github.ref_name }}" >>"$GITHUB_OUTPUT"
+          else
+            echo "tag=dev-${GITHUB_SHA::7}" >>"$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: /tmp/digests
+          pattern: digests-*
+          merge-multiple: true
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: create multi-arch manifest
+        working-directory: /tmp/digests
+        run: |
+          set -euo pipefail
+          docker buildx imagetools create \
+            -t ${{ env.IMAGE }}:${{ steps.tag.outputs.tag }} \
+            -t ${{ env.IMAGE }}:latest \
+            $(printf "${{ env.IMAGE }}@sha256:%s " *)
+
+      - name: inspect
+        run: |
+          docker buildx imagetools inspect ${{ env.IMAGE }}:${{ steps.tag.outputs.tag }}
