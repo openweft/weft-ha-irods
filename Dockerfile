@@ -196,10 +196,21 @@ RUN set -eux; \
 # layout under /opt/irods-externals/ matches what iRODS's CMake
 # expects (and what packages.irods.org would have installed).
 WORKDIR /externals
+# build.py redirects each tool's stdout to "<tool>.log" inside the
+# externals dir. On failure those files are the only record of what
+# went wrong — without surfacing them, all the build sees is
+# "make Error 1". The dump-on-failure trap below tails every log
+# so the rc4-arm64 post-mortem stops being blind (2026-06-23).
 RUN set -eux; \
     git clone --depth=1 --branch "${IRODS_EXTERNALS_REF}" \
         https://github.com/irods/externals.git /externals; \
-    make server; \
+    ( make server ) || ( \
+        echo '=== externals build FAILED — dumping per-tool logs ==='; \
+        for f in /externals/*.log; do \
+            echo "===== $f (tail 200) ====="; tail -n 200 "$f" || true; \
+        done; \
+        exit 1 \
+    ); \
     ls -1 irods-externals-*.deb; \
     dpkg -i irods-externals-*.deb; \
     test -d /opt/irods-externals/clang16.0.6-0; \
