@@ -131,7 +131,6 @@ RUN set -eux; \
         libarchive-dev \
         libbz2-dev \
         libcurl4-openssl-dev \
-        libcurl4-gnutls-dev \
         libfmt-dev \
         libfuse-dev \
         libicu-dev \
