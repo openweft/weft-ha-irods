@@ -292,6 +292,26 @@ RUN set -eux; \
 # for nanodbc / jsoncons / clang16.0.6-0).
 COPY --from=externalsbuilder /opt/irods-externals /opt/irods-externals
 
+# nlohmann_json from source. iRODS's find_package(nlohmann_json)
+# wants the upstream cmake-installed package (nlohmann_jsonConfig.cmake)
+# ; Debian's nlohmann-json3-dev only drops headers, no cmake config,
+# so the find_package fails (rc4 amd64 post-mortem 2026-06-24).
+# Pinned to v3.11.3 (matching iRODS 5.0.2 expectations) ; header-only
+# so the build is ~30s + cmake/install gives the Config.cmake file.
+ARG NLOHMANN_JSON_VERSION=v3.11.3
+RUN set -eux; \
+    wget -qO nj.tar.gz "https://github.com/nlohmann/json/archive/refs/tags/${NLOHMANN_JSON_VERSION}.tar.gz"; \
+    mkdir -p /src/njson; \
+    tar xzf nj.tar.gz -C /src/njson --strip-components=1; \
+    rm nj.tar.gz; \
+    cmake -S /src/njson -B /build-njson \
+        -G Ninja \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DJSON_BuildTests=OFF \
+        -DCMAKE_INSTALL_PREFIX=/usr/local; \
+    cmake --build /build-njson; \
+    cmake --install /build-njson
+
 # Pull the iRODS source tarball for the requested version. Using
 # the GitHub release tarball (not the git clone) so the cache key
 # is the version, not "HEAD-of-day".
