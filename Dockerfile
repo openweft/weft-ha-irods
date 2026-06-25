@@ -388,20 +388,13 @@ RUN set -eux; \
     cmake --build . --parallel "$(nproc)"; \
     cmake --install .
 
-# Build the postgres database plugin.
-RUN set -eux; \
-    git clone --depth=1 --branch "${IRODS_VERSION}" \
-        https://github.com/irods/irods_database_plugin_postgres.git /src/db-pg; \
-    mkdir -p /build-db-pg; \
-    cd /build-db-pg; \
-    cmake -G Ninja \
-        -DCMAKE_BUILD_TYPE=Release \
-        -DCMAKE_INSTALL_PREFIX=/opt/irods-staging \
-        -DIRODS_EXTERNALS_PACKAGE_ROOT=/opt/irods-externals \
-        -DIRODS_DIR=/opt/irods-staging/lib/cmake/IRODS \
-        /src/db-pg; \
-    cmake --build . --parallel "$(nproc)"; \
-    cmake --install .
+# The postgres database plugin is bundled inside the main irods/irods
+# source tree starting from iRODS 5.x — the previous external repo
+# https://github.com/irods/irods_database_plugin_postgres returns 404
+# (rc9 amd64 post-mortem 2026-06-25). The plugin is built + installed
+# as part of the cmake --install step above ; verified by the install
+# log line "Installing: …/share/doc/irods/irods-database-plugin-
+# postgres/copyright".
 
 ############################################################
 # Stage 3 — runtime : debian + iRODS install + externals + agent
