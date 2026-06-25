@@ -131,7 +131,6 @@ RUN set -eux; \
         libarchive-dev \
         libbz2-dev \
         libcurl4-openssl-dev \
-        libfmt-dev \
         libfuse-dev \
         libicu-dev \
         liblzma-dev \
@@ -311,6 +310,54 @@ RUN set -eux; \
         -DCMAKE_INSTALL_PREFIX=/usr/local; \
     cmake --build /build-njson; \
     cmake --install /build-njson
+
+# fmt 8.1.1 from source. iRODS 5.0.2 requires find_package(fmt 8.1.1)
+# ; Debian bookworm's libfmt-dev is 9.1.0+ds1-2 — the major bump
+# breaks find_package's version-compat predicate so the configure
+# step fails with "Could not find a package configuration file
+# provided by fmt (requested version 8.1.1)" (rc6 amd64 post-mortem
+# 2026-06-25). Build the upstream 8.1.1 release tarball under
+# /usr/local so CMake's prefix search finds it before the system
+# libfmt. Header-and-tiny-lib so the build is ~10s.
+ARG FMT_VERSION=8.1.1
+RUN set -eux; \
+    wget -qO fmt.tar.gz "https://github.com/fmtlib/fmt/archive/refs/tags/${FMT_VERSION}.tar.gz"; \
+    mkdir -p /src/fmt; \
+    tar xzf fmt.tar.gz -C /src/fmt --strip-components=1; \
+    rm fmt.tar.gz; \
+    cmake -S /src/fmt -B /build-fmt \
+        -G Ninja \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DBUILD_SHARED_LIBS=ON \
+        -DFMT_TEST=OFF \
+        -DFMT_DOC=OFF \
+        -DCMAKE_INSTALL_PREFIX=/usr/local; \
+    cmake --build /build-fmt --parallel "$(nproc)"; \
+    cmake --install /build-fmt
+
+# spdlog 1.9.2 from source. iRODS 5.0.2 expects spdlog matched to
+# fmt 8.x ABI ; Debian's libspdlog-dev 1.10.0-1 was compiled against
+# Debian's libfmt 9.x so even if it installs, runtime links break.
+# Building from source against our /usr/local fmt 8.1.1 keeps the
+# fmt ABI consistent end-to-end. -DSPDLOG_FMT_EXTERNAL=ON disables
+# the bundled fmt and reuses our fmt 8.1.1.
+ARG SPDLOG_VERSION=v1.9.2
+RUN set -eux; \
+    wget -qO spdlog.tar.gz "https://github.com/gabime/spdlog/archive/refs/tags/${SPDLOG_VERSION}.tar.gz"; \
+    mkdir -p /src/spdlog; \
+    tar xzf spdlog.tar.gz -C /src/spdlog --strip-components=1; \
+    rm spdlog.tar.gz; \
+    cmake -S /src/spdlog -B /build-spdlog \
+        -G Ninja \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DBUILD_SHARED_LIBS=ON \
+        -DSPDLOG_FMT_EXTERNAL=ON \
+        -DSPDLOG_BUILD_TESTS=OFF \
+        -DSPDLOG_BUILD_EXAMPLE=OFF \
+        -DCMAKE_PREFIX_PATH=/usr/local \
+        -DCMAKE_INSTALL_PREFIX=/usr/local; \
+    cmake --build /build-spdlog --parallel "$(nproc)"; \
+    cmake --install /build-spdlog
 
 # Pull the iRODS source tarball for the requested version. Using
 # the GitHub release tarball (not the git clone) so the cache key
