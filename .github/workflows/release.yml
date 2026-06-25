@@ -51,6 +51,24 @@ jobs:
         with:
           fetch-depth: 0
 
+      # Free ~25GB of disk before docker buildx kicks off. The
+      # ubuntu-latest runner ships with Android SDK / .NET / Haskell
+      # / GHC / CodeQL pre-installed that we don't need ; the iRODS
+      # source build inside the externalsbuilder stage chews through
+      # disk during the clang16 + boost compile (rc5 amd64 hit
+      # "dpkg-deb: paste subprocess killed by signal (Broken pipe)"
+      # = out-of-disk during the dpkg -i clang16.deb step). The
+      # arm64 runner is leaner but we apply the same purge for
+      # parity. 2026-06-25 rc6 post-mortem.
+      - name: free runner disk
+        run: |
+          set -eux
+          df -h /
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL /usr/local/share/boost /usr/local/share/powershell || true
+          sudo apt-get clean
+          docker image prune -af
+          df -h /
+
       - name: resolve tag
         id: tag
         run: |
