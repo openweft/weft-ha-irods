@@ -122,8 +122,6 @@ RUN set -eux; \
         ca-certificates \
         cmake \
         curl \
-        bison \
-        flex \
         fuse \
         g++ \
         gcc \
@@ -262,6 +260,7 @@ RUN set -eux; \
         libarchive-dev \
         libbz2-dev \
         libcurl4-openssl-dev \
+        libfl-dev \
         libfuse-dev \
         libkrb5-dev \
         libpam0g-dev \
