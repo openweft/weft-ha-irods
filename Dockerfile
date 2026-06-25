@@ -122,6 +122,8 @@ RUN set -eux; \
         ca-certificates \
         cmake \
         curl \
+        bison \
+        flex \
         fuse \
         g++ \
         gcc \
