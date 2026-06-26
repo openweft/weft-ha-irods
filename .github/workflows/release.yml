@@ -42,9 +42,19 @@ jobs:
           - platform: linux/amd64
             runner: ubuntu-latest
             arch: amd64
+            qemu: false
           - platform: linux/arm64
             runner: ubuntu-24.04-arm
             arch: arm64
+            qemu: false
+          # riscv64 + loong64 : the Dockerfile is arch-agnostic
+          # (versions.json LLVM_TARGETS_TO_BUILD covers all four
+          # backends), but the workflow matrix stays on amd64+arm64
+          # until we've validated the iRODS source tree compiles
+          # cleanly via qemu emulation — Debian bookworm coverage for
+          # riscv64 is incomplete (no libc6 in main), loong64 ships
+          # only in sid. Re-enable here once those archs land in our
+          # base layer. Track : [Infra images 4-arch directive].
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v7
@@ -87,6 +97,13 @@ jobs:
           set -euo pipefail
           echo "commit=$(git rev-parse --short HEAD)" >>"$GITHUB_OUTPUT"
           echo "date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >>"$GITHUB_OUTPUT"
+
+      # QEMU binfmt handler for emulated-arch builds (riscv64,
+      # loong64). Native amd64/arm64 jobs skip via matrix.qemu=false.
+      - if: ${{ matrix.qemu }}
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: ${{ matrix.platform }}
 
       - uses: docker/setup-buildx-action@v3
 
