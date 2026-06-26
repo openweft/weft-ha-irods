@@ -204,20 +204,19 @@ RUN set -eux; \
     git clone --depth=1 --branch "${IRODS_EXTERNALS_REF}" \
         https://github.com/irods/externals.git /externals; \
     # iRODS-externals hard-codes -DLLVM_TARGETS_TO_BUILD='X86' in
-    # versions.json's clang.build_steps, so on arm64 hosts LLVM's
+    # versions.json's clang.build_steps, so on any non-x86 host LLVM's
     # compiler-rt finds no buildable target ("Supported architectures
     # for crt:" comes out empty) and configure aborts with
     # "get_compiler_rt_output_dir Function invoked with incorrect
-    # arguments". rc6/rc7/rc8/rc9/rc10 arm64 post-mortem 2026-06-26 :
-    # https://github.com/openweft/weft-ha-irods/issues/... — pending
-    # upstream fix, patch the targets list in place to include the
-    # host arch. 'X86;AArch64' is the smallest superset that covers
-    # both amd64 and arm64 runners ; can be extended for riscv64 /
-    # loong64 if/when those land. \
+    # arguments". rc4-rc10 arm64 post-mortem 2026-06-26. Patch the
+    # targets list to the 4-arch superset openweft cares about
+    # (amd64+arm64+riscv64+loong64) so the same Dockerfile builds on
+    # every supported runner without per-arch branching. LLVM 16.0.6
+    # includes all four backends. \
     sed -i.bak \
-        "s|LLVM_TARGETS_TO_BUILD='X86'|LLVM_TARGETS_TO_BUILD='X86;AArch64'|g" \
+        "s|LLVM_TARGETS_TO_BUILD='X86'|LLVM_TARGETS_TO_BUILD='X86;AArch64;RISCV;LoongArch'|g" \
         versions.json; \
-    grep -q "X86;AArch64" versions.json; \
+    grep -q "X86;AArch64;RISCV;LoongArch" versions.json; \
     ( make server ) || ( \
         echo '=== externals build FAILED — dumping per-tool logs ==='; \
         for f in /externals/*.log; do \
