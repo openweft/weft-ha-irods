@@ -1,0 +1,67 @@
+name: CI
+
+# This repository had Go code, tests, and no CI lane at all -- its only
+# workflow is a workflow_dispatch release, so nothing ever built or ran the
+# tests. All twelve GOOS/GOARCH pairs build.
+#
+# Every GOOS/GOARCH pair below was cross-built locally before this lane was
+# written, so the matrix states what actually builds rather than what would be
+# nice to build.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: gofmt
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "::error::not gofmt-clean:"
+            echo "$unformatted"
+            exit 1
+          fi
+      - run: go vet ./...
+      - run: go test -count=1 ./...
+
+  race:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - run: go test -race -count=1 ./...
+
+  cross-build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        goos: [linux, darwin, freebsd, openbsd, netbsd, windows]
+        goarch: [amd64, arm64]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: cross-build ${{ matrix.goos }}/${{ matrix.goarch }}
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: go build ./...
