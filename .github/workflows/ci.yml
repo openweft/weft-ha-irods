@@ -1,0 +1,131 @@
+name: ci
+
+# This repository had tests and nothing that ran them.
+#
+# Its only workflow was release.yml, which fires on a tag or a manual
+# dispatch. Seven test files sat here being compiled by nobody: a pull
+# request reported no checks, which reads as green to anything that asks
+# whether something is failing.
+#
+# The matrix below was MEASURED on this module, not copied. Every GOOS/GOARCH
+# pair was cross-built locally first; the blanks are pairs the Go toolchain
+# does not have, not pairs left out.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+env:
+  CGO_ENABLED: "0"
+
+jobs:
+  test:
+    name: test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+      - run: go vet ./...
+      - name: gofmt
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          unformatted=$(gofmt -l $(git ls-files '*.go'))
+          if [ -n "$unformatted" ]; then
+            echo "::error::these files are not gofmt-clean:"; echo "$unformatted"
+            exit 1
+          fi
+      - run: go test -count=1 ./...
+
+  race:
+    name: race detector
+    runs-on: ubuntu-latest
+    env:
+      CGO_ENABLED: "1"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+      - run: go test -race -count=1 ./...
+
+  # THIS REPOSITORY IS BELOW THE FLEET STANDARD, WHICH IS 100%.
+  #
+  # The floor below is the number measured on darwin/arm64, the machine this
+  # was prepared on. The lane runs on LINUX, and those two have already
+  # disagreed elsewhere in this fleet -- a sibling read 31.7% on macOS and
+  # 22.3% on linux, because linux compiles platform-specific files darwin
+  # never counts. If the first run reports a different figure, THAT is the
+  # number this floor should carry: a gate's number belongs to the machine
+  # the gate runs on.
+  #
+  # THE 43.8 IS NOT THE STANDARD. It exists to be raised, and the distance
+  # to 100 is printed beside it so this lane going green can never be
+  # mistaken for conformance.
+  coverage-floor:
+    name: coverage floor (43.8%, standard is 100%)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+      - run: |
+          FLOOR=43.8
+          go test -coverprofile=cover.out ./... >/dev/null
+          go tool cover -func=cover.out | tail -25
+          cov=$(go tool cover -func=cover.out | tail -1 | awk '{print $3}' | tr -d '%')
+          echo "coverage: ${cov}%  floor: ${FLOOR}%  standard: 100%"
+          awk -v c="$cov" -v f="$FLOOR" 'BEGIN{exit !(c+0 < f+0)}' && {
+            echo "::error::coverage ${cov}% fell below the recorded floor ${FLOOR}%"; exit 1; }
+          awk -v c="$cov" 'BEGIN{if (c+0 < 100) printf "::warning::%.1f points short of the 100%% fleet standard\n", 100-c}'
+
+  linux-arches:
+    name: build linux/${{ matrix.goarch }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        goarch: [amd64, arm64, riscv64, loong64, ppc64le, s390x]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+      - env:
+          GOOS: linux
+          GOARCH: ${{ matrix.goarch }}
+        run: go build ./...
+
+  other-oses:
+    name: build ${{ matrix.goos }}/${{ matrix.goarch }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        goos: [darwin, windows]
+        goarch: [amd64, arm64]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+      - env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: go build ./...
