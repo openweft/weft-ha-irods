@@ -88,9 +88,9 @@ jobs:
           go test -coverprofile=cover.out ./... >/dev/null
           go tool cover -func=cover.out | tail -25
           cov=$(go tool cover -func=cover.out | tail -1 | awk '{print $3}' | tr -d '%')
-          echo "coverage: ${cov}%  floor: ${43.8}%  standard: 100%"
-          awk -v c="$cov" -v f="$43.8" 'BEGIN{exit !(c+0 < f+0)}' && {
-            echo "::error::coverage ${cov}% fell below the recorded floor ${43.8}%"; exit 1; }
+          echo "coverage: ${cov}%  floor: ${FLOOR}%  standard: 100%"
+          awk -v c="$cov" -v f="$FLOOR" 'BEGIN{exit !(c+0 < f+0)}' && {
+            echo "::error::coverage ${cov}% fell below the recorded floor ${FLOOR}%"; exit 1; }
           awk -v c="$cov" 'BEGIN{if (c+0 < 100) printf "::warning::%.1f points short of the 100%% fleet standard\n", 100-c}'
 
   linux-arches:
