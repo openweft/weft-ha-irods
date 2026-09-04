@@ -84,7 +84,7 @@ jobs:
           go-version-file: go.mod
           cache: true
       - run: |
-          43.8=43.8
+          FLOOR=43.8
           go test -coverprofile=cover.out ./... >/dev/null
           go tool cover -func=cover.out | tail -25
           cov=$(go tool cover -func=cover.out | tail -1 | awk '{print $3}' | tr -d '%')
