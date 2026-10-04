@@ -1,12 +1,11 @@
 module github.com/openweft/weft-ha-irods
 
-go 1.26
-
-// Cobra : openweft CLI convention (never the stdlib `flag` package).
-require github.com/spf13/cobra v1.10.2
+go 1.27.1
 
 require (
 	github.com/openweft/weft-slognats v0.3.0
+	// Cobra : openweft CLI convention (never the stdlib `flag` package).
+	github.com/spf13/cobra v1.10.2
 	go.etcd.io/etcd/client/v3 v3.6.12
 )
 

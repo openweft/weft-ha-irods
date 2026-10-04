@@ -67,7 +67,7 @@
 # Trigger : workflow_dispatch + on push: tags ['v*'] only (no
 #           autopublish on push:main — see openweft policy).
 
-ARG GO_VERSION=1.26
+ARG GO_VERSION=1.27.1
 ARG DEBIAN_VERSION=12-slim
 ARG IRODS_VERSION=5.0.2
 # irods/externals has no per-iRODS-release tag (last tag is 4.2.7) ;
