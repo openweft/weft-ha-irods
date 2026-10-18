@@ -70,10 +70,15 @@
 ARG GO_VERSION=1.27.2
 ARG DEBIAN_VERSION=12-slim
 ARG IRODS_VERSION=5.0.2
-# irods/externals has no per-iRODS-release tag (last tag is 4.2.7) ;
-# upstream development tracks `main`, which is what
-# irods_development_environment's externals_builder image checks out.
-ARG IRODS_EXTERNALS_REF=main
+# irods/externals has no per-iRODS-release tag (last tag is 4.2.7), so
+# the ref is pinned to a COMMIT. Tracking `main` broke the build on
+# 2026-08-12: irods/externals c0959449 ("Add support for Ubuntu 26.04")
+# moved nanodbc from 2.13.0-3 to 2.14.0+216-1, while iRODS 5.0.2 and the
+# checks below expect /opt/irods-externals/nanodbc2.13.0-3. c391dba7 is
+# its parent, the last commit shipping boost1.81.0-2, clang16.0.6-0,
+# jsoncons0.178.0-0 and nanodbc2.13.0-3. Move it together with
+# IRODS_VERSION and the externals paths used further down.
+ARG IRODS_EXTERNALS_REF=c391dba7703cc7174ff398236b270bc34fe3bf4d
 
 ############################################################
 # Stage 0 — build the weft-ha-irods Go agent
@@ -201,8 +206,10 @@ WORKDIR /externals
 # "make Error 1". The dump-on-failure trap below tails every log
 # so the rc4-arm64 post-mortem stops being blind (2026-06-23).
 RUN set -eux; \
-    git clone --depth=1 --branch "${IRODS_EXTERNALS_REF}" \
-        https://github.com/irods/externals.git /externals; \
+    git init -q /externals; \
+    git -C /externals fetch -q --depth=1 \
+        https://github.com/irods/externals.git "${IRODS_EXTERNALS_REF}"; \
+    git -C /externals checkout -q FETCH_HEAD; \
     # iRODS-externals hard-codes -DLLVM_TARGETS_TO_BUILD='X86' in
     # versions.json's clang.build_steps, so on any non-x86 host LLVM's
     # compiler-rt finds no buildable target ("Supported architectures
