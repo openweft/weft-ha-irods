@@ -1,6 +1,6 @@
 module github.com/openweft/weft-ha-irods
 
-go 1.27.2
+go 1.27.3
 
 require (
 	github.com/openweft/weft-slognats v0.3.0
