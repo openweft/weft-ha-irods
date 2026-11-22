@@ -3,7 +3,7 @@ module github.com/openweft/weft-ha-irods
 go 1.27.4
 
 require (
-	github.com/go-authn/secretsource v0.8.1
+	github.com/go-authn/secretsource v0.10.0
 	github.com/openweft/weft-slognats v0.3.0
 	// Cobra : openweft CLI convention (never the stdlib `flag` package).
 	github.com/spf13/cobra v1.10.2
