@@ -23,12 +23,11 @@ import (
 	weftslognats "github.com/openweft/weft-slognats"
 
 	"github.com/go-authn/secretsource/secretflag"
+	dcs "github.com/openweft/weft-ha-dcs"
 	"github.com/openweft/weft-ha-irods/internal/api"
 	"github.com/openweft/weft-ha-irods/internal/config"
-	"github.com/openweft/weft-ha-irods/internal/dcs"
 	"github.com/openweft/weft-ha-irods/internal/irods"
 	"github.com/openweft/weft-ha-irods/internal/reconcile"
-	"github.com/openweft/weft-ha-irods/internal/sealflag"
 )
 
 // Build metadata, injected via -ldflags.
@@ -72,8 +71,6 @@ func agentCmd() *cobra.Command {
 		cfg     config.Config
 		period  time.Duration
 		secrets []*secretflag.Binding
-
-		sealBindings []*sealflag.Binding
 	)
 	cmd := &cobra.Command{
 		Use:   "agent",
@@ -81,9 +78,6 @@ func agentCmd() *cobra.Command {
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if err := secretflag.Resolve(cmd.Context(), secrets...); err != nil {
-				return err
-			}
-			if err := sealflag.Resolve(cmd.Context(), sealBindings...); err != nil {
 				return err
 			}
 			if err := cfg.Validate(); err != nil {
@@ -115,13 +109,14 @@ func agentCmd() *cobra.Command {
 	}
 	// The cluster key that seals the zone keys in etcd (>= 32 bytes,
 	// identical on every provider). Rotation: new key here, old one below.
-	sealBindings = []*sealflag.Binding{
-		sealflag.AddFrom(cmd, "etcd-seal-key", &cfg.SealKey, "cluster key sealing the zone keys in etcd"),
-		sealflag.AddFromList(cmd, "etcd-seal-old-key", &cfg.SealOldKeys, "previous cluster key (rotation)"),
-		// etcd mTLS client key and user password: by reference only.
-		sealflag.AddFrom(cmd, "etcd-client-key", &cfg.EtcdClientKey, "etcd client TLS private key (PEM)"),
-		sealflag.AddFrom(cmd, "etcd-password", &cfg.EtcdPassword, "etcd user password"),
-	}
+	// These have no plain twin: by reference only (etcd mTLS client key and
+	// user password included).
+	secrets = append(secrets,
+		secretflag.AddFrom(cmd, "etcd-seal-key", &cfg.SealKey, "cluster key sealing the zone keys in etcd"),
+		secretflag.AddFromList(cmd, "etcd-seal-old-key", &cfg.SealOldKeys, "previous cluster key (rotation)"),
+		secretflag.AddFrom(cmd, "etcd-client-key", &cfg.EtcdClientKey, "etcd client TLS private key (PEM)"),
+		secretflag.AddFrom(cmd, "etcd-password", &cfg.EtcdPassword, "etcd user password"),
+	)
 	f.StringVar(&cfg.EtcdCA, "etcd-ca", "", "PEM bundle of the CA that signed the etcd servers (default: system roots)")
 	f.StringVar(&cfg.EtcdCert, "etcd-cert", "", "etcd client certificate (PEM file) for mutual TLS; needs --etcd-client-key-from")
 	f.StringVar(&cfg.EtcdUser, "etcd-user", "", "etcd user name; needs --etcd-password-from")
@@ -194,7 +189,7 @@ func pickStore(cfg config.Config, log *slog.Logger) (dcs.Store, error) {
 		log.Warn("DCS = MemStore (no etcd configured) ; NOT cross-replica")
 		return dcs.NewMemStore(), nil
 	}
-	etcd, err := dcs.NewEtcdStore(endpoints, cfg.ZoneName, 15, dcs.EtcdSecurity{
+	etcd, err := dcs.NewEtcdStore(endpoints, "/weft/irods/"+cfg.ZoneName, 15, dcs.EtcdSecurity{
 		CAFile:         cfg.EtcdCA,
 		CertFile:       cfg.EtcdCert,
 		KeyPEM:         cfg.EtcdClientKey,

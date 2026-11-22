@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/openweft/weft-ha-irods/internal/dcs"
+	dcs "github.com/openweft/weft-ha-dcs"
 )
 
 // A zone seeded in plaintext by an older agent is re-sealed on start, the

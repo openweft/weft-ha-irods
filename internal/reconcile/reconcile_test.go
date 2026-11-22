@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
+	dcs "github.com/openweft/weft-ha-dcs"
 	"github.com/openweft/weft-ha-irods/internal/api"
 	"github.com/openweft/weft-ha-irods/internal/config"
-	"github.com/openweft/weft-ha-irods/internal/dcs"
 	"github.com/openweft/weft-ha-irods/internal/irods"
 )
 
