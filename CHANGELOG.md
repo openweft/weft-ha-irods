@@ -7,6 +7,20 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 
 ## [Unreleased]
 
+### Added
+
+- `--admin-password-from`, `--icat-db-password-from`,
+  `--negotiation-key-from`, `--control-plane-key-from`, `--zone-key-from`:
+  take each secret by go-authn/secretsource reference
+  (`systemd-creds:`, `keychain:`, `keepassxc:`, `file:`) instead of a
+  flag value visible in `ps`.
+
+### Deprecated
+
+- The plain `--admin-password`, `--icat-db-password`, `--negotiation-key`,
+  `--control-plane-key`, `--zone-key` flags: they warn on stderr, are
+  mutually exclusive with their `-from` twin, and go in the next minor.
+
 ### Fixed
 
 - `internal/api.ready` (serving both `/ready` and `/health`) now emits a

@@ -27,6 +27,7 @@ import (
 	"github.com/openweft/weft-ha-irods/internal/dcs"
 	"github.com/openweft/weft-ha-irods/internal/irods"
 	"github.com/openweft/weft-ha-irods/internal/reconcile"
+	"github.com/openweft/weft-ha-irods/internal/secretflag"
 )
 
 // Build metadata, injected via -ldflags.
@@ -67,14 +68,18 @@ func versionCmd() *cobra.Command {
 
 func agentCmd() *cobra.Command {
 	var (
-		cfg    config.Config
-		period time.Duration
+		cfg     config.Config
+		period  time.Duration
+		secrets []*secretflag.Binding
 	)
 	cmd := &cobra.Command{
 		Use:   "agent",
 		Short: "Run the per-provider HA agent (one per iRODS catalog server)",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			if err := secretflag.Resolve(cmd.Context(), secrets...); err != nil {
+				return err
+			}
 			if err := cfg.Validate(); err != nil {
 				return fmt.Errorf("invalid config: %w", err)
 			}
@@ -86,19 +91,22 @@ func agentCmd() *cobra.Command {
 	f.StringVar(&cfg.ZoneName, "zone-name", "weftZone", "iRODS zone name")
 	f.StringVar(&cfg.DC, "dc", "", "failure domain (datacenter / cell)")
 	f.StringSliceVar(&cfg.EtcdEndpoints, "etcd", nil, "etcd endpoints (comma-separated)")
-	f.StringVar(&cfg.AdminPassword, "admin-password", "", "rodsadmin bootstrap password")
 	f.StringVar(&cfg.ICATDBHost, "icat-db-host", "", "catalog Postgres host")
 	f.IntVar(&cfg.ICATDBPort, "icat-db-port", 5432, "catalog Postgres port")
 	f.StringVar(&cfg.ICATDBName, "icat-db-name", "ICAT", "catalog Postgres database name")
 	f.StringVar(&cfg.ICATDBUser, "icat-db-user", "irods", "catalog Postgres user")
-	f.StringVar(&cfg.ICATDBPassword, "icat-db-password", "", "catalog Postgres password")
-	f.StringVar(&cfg.NegotiationKey, "negotiation-key", "", "iRODS native auth negotiation key (empty = mint + seed via etcd)")
-	f.StringVar(&cfg.ControlPlaneKey, "control-plane-key", "", "iRODS control-plane key (empty = mint + seed)")
-	f.StringVar(&cfg.ZoneKey, "zone-key", "", "inter-zone trust key (empty = mint + seed)")
 	f.StringVar(&cfg.APIAddr, "api-addr", ":8009", "role API listen address")
 	f.StringVar(&cfg.MetricsAddr, "metrics-addr", ":9102", "Prometheus metrics listen address")
 	f.DurationVar(&cfg.BootstrapTimeout, "bootstrap-timeout", 30*time.Second, "wait-for-lock timeout during bootstrap")
 	f.DurationVar(&period, "reconcile-interval", 5*time.Second, "reconcile loop interval")
+	// Secrets: never a plain value on the command line (visible in ps).
+	secrets = []*secretflag.Binding{
+		secretflag.Add(cmd, "admin-password", &cfg.AdminPassword, "rodsadmin bootstrap password"),
+		secretflag.Add(cmd, "icat-db-password", &cfg.ICATDBPassword, "catalog Postgres password"),
+		secretflag.Add(cmd, "negotiation-key", &cfg.NegotiationKey, "iRODS native auth negotiation key (empty = mint + seed via etcd)"),
+		secretflag.Add(cmd, "control-plane-key", &cfg.ControlPlaneKey, "iRODS control-plane key (empty = mint + seed)"),
+		secretflag.Add(cmd, "zone-key", &cfg.ZoneKey, "inter-zone trust key (empty = mint + seed)"),
+	}
 	return cmd
 }
 
