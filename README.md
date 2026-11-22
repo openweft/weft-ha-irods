@@ -63,6 +63,32 @@ The agent's only child processes are `irods-grid status --all` and
 the agent sets. Keep it that way: pass any future secret to a child by a
 file in a private `0700` directory or by stdin.
 
+### Zone keys in etcd are sealed
+
+The negotiation, control-plane and zone keys are shared between the providers
+through etcd, but never stored there in plaintext. Every provider takes the
+same **cluster key** (at least 32 bytes) by reference with
+`--etcd-seal-key-from` (required), e.g. `systemd-creds:etcd-seal`, and seals
+each value with AES-256-GCM (key derived by HKDF-SHA256, the etcd path as
+additional data) before writing it. etcd holds
+`weft-seal:v1:<key id>:<ciphertext>`; the cluster key itself is never in
+etcd. Provision it on each node with go-ansible's `systemd_creds_encrypt`
+module (or `systemd-creds encrypt`).
+
+- **Upgrading a running zone**: start the agents with `--etcd-seal-key-from`.
+  The first read of a plaintext value seals it (compare-and-swap, idempotent,
+  safe with several providers) and compacts the etcd history so the old
+  plaintext revision is dropped. Upgrade every provider in the same window:
+  an agent from before this release cannot read sealed values.
+- **Rotation**: pass the new key as `--etcd-seal-key-from` and the old one as
+  `--etcd-seal-old-key-from` (repeatable); values are re-sealed under the new
+  key on first read. Drop the old flag once every node has restarted.
+- **Not covered**: an etcd member's WAL and snapshots written before the
+  upgrade still hold the plaintext until the member is defragmented and the
+  snapshots are rotated; the agent's etcd connection has no TLS or
+  authentication of its own; a node (or anyone) that holds the cluster key
+  reads the keys.
+
 ### systemd credentials
 
 ```ini

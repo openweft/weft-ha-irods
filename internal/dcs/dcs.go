@@ -77,6 +77,18 @@ func (m *MemStore) PutKeyIfAbsent(_ context.Context, path, value string) (bool, 
 	return true, nil
 }
 
+// ReplaceKey implements Rewriter.
+func (m *MemStore) ReplaceKey(_ context.Context, path, prev, next string) (bool, error) {
+	if cur, ok := m.keys[path]; !ok || cur != prev {
+		return false, nil
+	}
+	m.keys[path] = next
+	return true, nil
+}
+
+// Compact implements Rewriter ; a map keeps no history.
+func (m *MemStore) Compact(context.Context) error { return nil }
+
 // AcquireBootstrapLock implements Store. The MemStore version
 // enforces local exclusion only — for cross-process locks the
 // caller must wire an etcd-backed Store.

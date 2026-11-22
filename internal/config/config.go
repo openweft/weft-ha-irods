@@ -45,6 +45,12 @@ type Config struct {
 	ControlPlaneKey string
 	ZoneKey         string
 
+	// SealKey is the cluster key that seals the zone keys before they are
+	// written to etcd (obtained via --etcd-seal-key-from, never stored in
+	// etcd). SealOldKeys are previous cluster keys, kept for rotation.
+	SealKey     string
+	SealOldKeys []string
+
 	// APIAddr is the listen address for the role API (the L4 Caddy in
 	// weft-agent active-probes /ready here).
 	APIAddr string
@@ -70,6 +76,8 @@ func (c Config) Validate() error {
 		return fmt.Errorf("dc (failure domain) must not be empty")
 	case len(c.EtcdEndpoints) == 0:
 		return fmt.Errorf("at least one etcd endpoint is required")
+	case c.SealKey == "":
+		return fmt.Errorf("etcd-seal-key-from must be given: zone keys are never stored in etcd in plaintext")
 	case c.AdminPassword == "":
 		return fmt.Errorf("admin-password must not be empty")
 	case c.ICATDBHost == "":
