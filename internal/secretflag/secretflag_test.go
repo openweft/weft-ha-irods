@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -45,6 +46,9 @@ func TestPlainFlagStillWorksAndWarns(t *testing.T) {
 }
 
 func TestFromFile(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("secretsource file: refuses a temp file whose inherited DACL grants a non-owner; the refusal is secretsource's own tested behaviour")
+	}
 	p := filepath.Join(t.TempDir(), "tok")
 	if err := os.WriteFile(p, []byte("s3cret\n"), 0o600); err != nil {
 		t.Fatal(err)
