@@ -9,8 +9,8 @@ github.com/ebitengine/purego v0.11.2 h1:WWiTx8rD8zYdOwSj8O/NiNbsOvSAgJMTlyV1XlbU
 github.com/ebitengine/purego v0.11.2/go.mod h1:DCHPP08djqhNSoTfImcnHYQRZmd0qhakvrozqaEYhGQ=
 github.com/go-authn/harden v0.2.0 h1:xPWLSeelcFEo4gJU5aTNWngZn6R/VQ9bTGDx3BRrUb0=
 github.com/go-authn/harden v0.2.0/go.mod h1:sceLxhnMHtExHEp9bU8XHKCw2fp+WFjh6Ri6Yxu2aVA=
-github.com/go-authn/secretsource v0.8.1 h1:Yae4pMEcP1Wj94HoICA3E6UIemM3izQdFgnMiSmnMRA=
-github.com/go-authn/secretsource v0.8.1/go.mod h1:59e2lgmXt36JIyrCjlYjLG5BYG+umxYJSAmHb5J+gfk=
+github.com/go-authn/secretsource v0.10.0 h1:wZQNyh1OTMc4pgQHHDiCOj38qaOaC2XyV5hYw2JtmPY=
+github.com/go-authn/secretsource v0.10.0/go.mod h1:59e2lgmXt36JIyrCjlYjLG5BYG+umxYJSAmHb5J+gfk=
 github.com/go-freedesktop/secretservice v0.4.0 h1:PV2fLZ/ZsL2R5T6CMBOQ/5lmwP73rUJ1PN0FG6v5gQ0=
 github.com/go-freedesktop/secretservice v0.4.0/go.mod h1:JQ2M/y+g4Img7KM2bleUTz2EruH9fpkJ4GHqQpYVAMo=
 github.com/go-macos/keychain v0.3.1 h1:pH/sxiVCTqj2rafKiWsufWKrRlHZ7YRNiePgrMieRQs=
