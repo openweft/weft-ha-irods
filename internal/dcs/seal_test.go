@@ -126,11 +126,15 @@ func TestReadErrorsNeverEchoASecret(t *testing.T) {
 }
 
 func flip(b string) string {
+	// The FIRST character carries a full 6 bits of the nonce: changing it always
+	// changes the decoded bytes. (The last character of an unpadded base64 string
+	// may carry only padding bits, and then a change decodes to the same bytes:
+	// that flaked this test on one run in a few.)
 	c := []byte(b)
-	if c[len(c)-1] == 'A' {
-		c[len(c)-1] = 'B'
+	if c[0] == 'A' {
+		c[0] = 'B'
 	} else {
-		c[len(c)-1] = 'A'
+		c[0] = 'A'
 	}
 	return string(c)
 }
