@@ -3,13 +3,15 @@ package dcs
 import "testing"
 
 // TestEtcdStoreCompilesAgainstStore is a smoke compile-time check that
-// EtcdStore satisfies the Store interface. Integration tests against
-// a real or embedded etcd live in a follow-up milestone (see
-// weft-ha-postgresql/internal/dcs/dcs_integration_test.go for the
-// pattern) ; pulling embed.Etcd into this module would add a heavy
-// dep that we don't need yet.
+// EtcdStore satisfies the Store interface. The TLS and authentication paths
+// are exercised against a TLS gRPC fake of the etcd services in
+// security_test.go (no embedded etcd: it would add a heavy dependency).
 func TestEtcdStoreCompilesAgainstStore(t *testing.T) {
-	var s Store = NewEtcdStore([]string{"127.0.0.1:2379"}, "weftZone", 15)
+	e, err := NewEtcdStore([]string{"https://127.0.0.1:2379"}, "smoke-install", 15, EtcdSecurity{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var s Store = e
 	if s == nil {
 		t.Fatal("NewEtcdStore returned nil")
 	}

@@ -44,7 +44,10 @@ func (f *fakeKV) Compact(_ context.Context, rev int64, _ ...clientv3.CompactOpti
 }
 
 func storeWith(kv *fakeKV) *EtcdStore {
-	e := NewEtcdStore(nil, "inst", 15)
+	e, err := NewEtcdStore(nil, "inst", 15, EtcdSecurity{})
+	if err != nil {
+		panic(err)
+	}
 	e.kvOverride = kv
 	return e
 }
@@ -77,7 +80,10 @@ func TestEtcdCompactToHead(t *testing.T) {
 }
 
 func TestEtcdKVConnectFailure(t *testing.T) {
-	e := NewEtcdStore(nil, "inst", 15) // no endpoints: the client refuses at once
+	e, err := NewEtcdStore(nil, "inst", 15, EtcdSecurity{}) // no endpoints: the client refuses at once
+	if err != nil {
+		t.Fatal(err)
+	}
 	if _, err := e.ReplaceKey(ctx, "/k", "a", "b"); err == nil {
 		t.Fatal("ReplaceKey connected to nothing")
 	}

@@ -9,6 +9,7 @@ require (
 	github.com/spf13/cobra v1.10.2
 	go.etcd.io/etcd/api/v3 v3.6.14
 	go.etcd.io/etcd/client/v3 v3.6.14
+	google.golang.org/grpc v1.84.0
 )
 
 require (
@@ -38,6 +39,5 @@ require (
 	golang.org/x/text v0.44.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260706201446-f0a921348800 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260706201446-f0a921348800 // indirect
-	google.golang.org/grpc v1.84.0 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 )

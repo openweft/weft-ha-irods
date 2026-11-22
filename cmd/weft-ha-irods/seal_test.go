@@ -16,7 +16,7 @@ var quiet = slog.New(slog.NewTextHandler(io.Discard, nil))
 
 func TestPickStoreSealsEtcd(t *testing.T) {
 	t.Setenv("WEFT_HA_IRODS_ETCD", "")
-	cfg := config.Config{ZoneName: "z", EtcdEndpoints: []string{"127.0.0.1:1"}, SealKey: strings.Repeat("k", 32)}
+	cfg := config.Config{ZoneName: "z", EtcdEndpoints: []string{"https://127.0.0.1:1"}, SealKey: strings.Repeat("k", 32)}
 	s, err := pickStore(cfg, quiet)
 	if err != nil {
 		t.Fatal(err)
@@ -28,9 +28,27 @@ func TestPickStoreSealsEtcd(t *testing.T) {
 
 func TestPickStoreRefusesAShortKey(t *testing.T) {
 	t.Setenv("WEFT_HA_IRODS_ETCD", "")
-	cfg := config.Config{ZoneName: "z", EtcdEndpoints: []string{"127.0.0.1:1"}, SealKey: "short"}
+	cfg := config.Config{ZoneName: "z", EtcdEndpoints: []string{"https://127.0.0.1:1"}, SealKey: "short"}
 	if _, err := pickStore(cfg, quiet); err == nil {
 		t.Fatal("a short seal key was accepted")
+	}
+}
+
+func TestPickStoreRefusesPlaintextEtcd(t *testing.T) {
+	t.Setenv("WEFT_HA_IRODS_ETCD", "")
+	cfg := config.Config{ZoneName: "z", EtcdEndpoints: []string{"http://127.0.0.1:1"}, SealKey: strings.Repeat("k", 32)}
+	if _, err := pickStore(cfg, quiet); err == nil || !strings.Contains(err.Error(), "plaintext") {
+		t.Fatalf("a plaintext etcd was accepted: %v", err)
+	}
+	// The environment override goes through the same check.
+	t.Setenv("WEFT_HA_IRODS_ETCD", "etcd:2379")
+	cfg.EtcdEndpoints = []string{"https://127.0.0.1:1"}
+	if _, err := pickStore(cfg, quiet); err == nil || !strings.Contains(err.Error(), "plaintext") {
+		t.Fatalf("a plaintext etcd from the environment was accepted: %v", err)
+	}
+	cfg.EtcdInsecure = true
+	if _, err := pickStore(cfg, quiet); err != nil {
+		t.Fatalf("the explicit flag was refused: %v", err)
 	}
 }
 
@@ -44,7 +62,7 @@ func TestPickStoreWithoutEtcdIsMemory(t *testing.T) {
 
 func TestRunAgentStopsOnABadSealKey(t *testing.T) {
 	t.Setenv("WEFT_HA_IRODS_ETCD", "")
-	cfg := config.Config{NodeName: "n", ZoneName: "z", EtcdEndpoints: []string{"127.0.0.1:1"}, SealKey: "short"}
+	cfg := config.Config{NodeName: "n", ZoneName: "z", EtcdEndpoints: []string{"https://127.0.0.1:1"}, SealKey: "short"}
 	// A regression would start a real agent: bound it instead of hanging.
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
@@ -71,7 +89,8 @@ func TestSealFlagsExist(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, n := range []string{"etcd-seal-key-from", "etcd-seal-old-key-from"} {
+	for _, n := range []string{"etcd-seal-key-from", "etcd-seal-old-key-from", "etcd-client-key-from",
+		"etcd-password-from", "etcd-ca", "etcd-cert", "etcd-user", "etcd-insecure-plaintext"} {
 		if agent.Flags().Lookup(n) == nil {
 			t.Errorf("--%s missing", n)
 		}
