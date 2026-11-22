@@ -46,6 +46,42 @@ What's intentionally **not** here :
 - Federation — set `zone_key` in the plugin inputs to enable federation,
   but the federation handshake stays an `iadmin mkzone` operator step.
 
+## Secrets
+
+A flag value is visible in `ps` and in `/proc/<pid>/cmdline`, so every
+secret is taken **by reference**. Each of `--admin-password`,
+`--icat-db-password`, `--negotiation-key`, `--control-plane-key` and
+`--zone-key` has a `--<name>-from <ref>` twin, resolved with
+[go-authn/secretsource](https://github.com/go-authn/secretsource)
+(`systemd-creds:<name>`, `keychain:`, `keepassxc:`, `file:` — mode
+checked, at most 4096 bytes). The plain flag still works for one minor
+release, prints a deprecation warning on stderr, and is refused together
+with its twin. It will be removed in the next minor.
+
+The agent's only child processes are `irods-grid status --all` and
+`iadmin`; they receive no secret, neither by argv nor by environment
+the agent sets. Keep it that way: pass any future secret to a child by a
+file in a private `0700` directory or by stdin.
+
+### systemd credentials
+
+```ini
+[Service]
+LoadCredentialEncrypted=admin-password:/etc/credstore.encrypted/admin-password
+LoadCredentialEncrypted=icat-db-password:/etc/credstore.encrypted/icat-db-password
+ExecStart=/usr/local/bin/weft-ha-irods agent \
+  --admin-password-from systemd-creds:admin-password \
+  --icat-db-password-from systemd-creds:icat-db-password
+```
+
+Seal with `systemd-creds encrypt --name=admin-password - admin-password.cred`.
+**TPM caveat**: do not seal with a bare `--tpm2-pcrs=7`: a Secure Boot
+db/dbx or firmware update changes PCR 7 and the credential no longer
+opens. Seal to `--with-key=host+tpm2` (the host key is the recovery
+path), or to a signed PCR policy (`--tpm2-public-key=`), or manage the
+policy with `systemd-pcrlock`; otherwise keep a plaintext copy offline
+and re-seal after each firmware change.
+
 ## Layout
 
 ```
