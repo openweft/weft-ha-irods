@@ -41,6 +41,8 @@ type EtcdStore struct {
 	mu      sync.Mutex
 	client  *clientv3.Client
 	session *concurrency.Session
+
+	kvOverride kvAPI // tests only
 }
 
 // NewEtcdStore wires a Store against the given etcd endpoints. The
@@ -124,6 +126,57 @@ func (e *EtcdStore) PutKeyIfAbsent(ctx context.Context, key, value string) (bool
 	return resp.Succeeded, nil
 }
 
+// kvAPI is the slice of the etcd client that ReplaceKey and Compact use ; the
+// seam lets tests drive them without an etcd server.
+type kvAPI interface {
+	Get(ctx context.Context, key string, opts ...clientv3.OpOption) (*clientv3.GetResponse, error)
+	Txn(ctx context.Context) clientv3.Txn
+	Compact(ctx context.Context, rev int64, opts ...clientv3.CompactOption) (*clientv3.CompactResponse, error)
+}
+
+// kv returns the client (or the test double).
+func (e *EtcdStore) kv(ctx context.Context) (kvAPI, error) {
+	if e.kvOverride != nil {
+		return e.kvOverride, nil
+	}
+	cli, _, err := e.connect(ctx)
+	return cli, err
+}
+
+// ReplaceKey implements Rewriter : a Txn comparing the current value to prev.
+func (e *EtcdStore) ReplaceKey(ctx context.Context, key, prev, next string) (bool, error) {
+	kv, err := e.kv(ctx)
+	if err != nil {
+		return false, err
+	}
+	resp, err := kv.Txn(ctx).
+		If(clientv3.Compare(clientv3.Value(key), "=", prev)).
+		Then(clientv3.OpPut(key, next)).
+		Commit()
+	if err != nil {
+		// The error text carries the key, never a value.
+		return false, fmt.Errorf("etcd Txn(%s): %w", key, err)
+	}
+	return resp.Succeeded, nil
+}
+
+// Compact implements Rewriter : it compacts to the current revision, dropping
+// every superseded revision (a replaced plaintext value among them).
+func (e *EtcdStore) Compact(ctx context.Context) error {
+	kv, err := e.kv(ctx)
+	if err != nil {
+		return err
+	}
+	head, err := kv.Get(ctx, e.bootstrapLockPath(), clientv3.WithLimit(1))
+	if err != nil {
+		return fmt.Errorf("etcd revision: %w", err)
+	}
+	if _, err := kv.Compact(ctx, head.Header.Revision, clientv3.WithCompactPhysical()); err != nil {
+		return fmt.Errorf("etcd Compact: %w", err)
+	}
+	return nil
+}
+
 // bootstrapLockPath returns the etcd key the bootstrap mutex lives at.
 func (e *EtcdStore) bootstrapLockPath() string {
 	return path.Join("/weft/irods", e.zoneName, "bootstrap-lock")
@@ -177,4 +230,7 @@ func (e *EtcdStore) Close() error {
 }
 
 // compile-time assertion : EtcdStore implements Store.
-var _ Store = (*EtcdStore)(nil)
+var (
+	_ Store    = (*EtcdStore)(nil)
+	_ Rewriter = (*EtcdStore)(nil)
+)

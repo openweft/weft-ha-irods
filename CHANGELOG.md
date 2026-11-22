@@ -7,6 +7,16 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 
 ## [Unreleased]
 
+### Security
+
+- The zone keys seeded into etcd (negotiation, control_plane, zone) are
+  sealed with AES-256-GCM under a cluster key taken from
+  `--etcd-seal-key-from` (required, >= 32 bytes, never stored in etcd).
+  Existing plaintext values are sealed on first read and the etcd history is
+  compacted. `--etcd-seal-old-key-from` supports rotation. Breaking: the new
+  flag is required, and agents from before this release cannot read sealed
+  values.
+
 ### Added
 
 - `--admin-password-from`, `--icat-db-password-from`,
