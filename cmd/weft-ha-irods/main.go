@@ -118,7 +118,14 @@ func agentCmd() *cobra.Command {
 	sealBindings = []*sealflag.Binding{
 		sealflag.AddFrom(cmd, "etcd-seal-key", &cfg.SealKey, "cluster key sealing the zone keys in etcd"),
 		sealflag.AddFromList(cmd, "etcd-seal-old-key", &cfg.SealOldKeys, "previous cluster key (rotation)"),
+		// etcd mTLS client key and user password: by reference only.
+		sealflag.AddFrom(cmd, "etcd-client-key", &cfg.EtcdClientKey, "etcd client TLS private key (PEM)"),
+		sealflag.AddFrom(cmd, "etcd-password", &cfg.EtcdPassword, "etcd user password"),
 	}
+	f.StringVar(&cfg.EtcdCA, "etcd-ca", "", "PEM bundle of the CA that signed the etcd servers (default: system roots)")
+	f.StringVar(&cfg.EtcdCert, "etcd-cert", "", "etcd client certificate (PEM file) for mutual TLS; needs --etcd-client-key-from")
+	f.StringVar(&cfg.EtcdUser, "etcd-user", "", "etcd user name; needs --etcd-password-from")
+	f.BoolVar(&cfg.EtcdInsecure, "etcd-insecure-plaintext", false, "allow plaintext etcd (no TLS; a password goes in clear): throwaway development etcd only")
 	return cmd
 }
 
@@ -187,8 +194,23 @@ func pickStore(cfg config.Config, log *slog.Logger) (dcs.Store, error) {
 		log.Warn("DCS = MemStore (no etcd configured) ; NOT cross-replica")
 		return dcs.NewMemStore(), nil
 	}
-	log.Info("DCS = etcd (zone keys sealed)", "endpoints", endpoints, "zone", cfg.ZoneName)
-	return dcs.NewSealedStore(dcs.NewEtcdStore(endpoints, cfg.ZoneName, 15), cfg.SealKey, cfg.SealOldKeys...)
+	etcd, err := dcs.NewEtcdStore(endpoints, cfg.ZoneName, 15, dcs.EtcdSecurity{
+		CAFile:         cfg.EtcdCA,
+		CertFile:       cfg.EtcdCert,
+		KeyPEM:         cfg.EtcdClientKey,
+		Username:       cfg.EtcdUser,
+		Password:       cfg.EtcdPassword,
+		AllowPlaintext: cfg.EtcdInsecure,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if cfg.EtcdInsecure {
+		log.Warn("etcd without TLS (--etcd-insecure-plaintext): anyone on the network can read and modify it")
+	}
+	log.Info("DCS = etcd (zone keys sealed)", "endpoints", endpoints, "zone", cfg.ZoneName,
+		"mtls", cfg.EtcdCert != "", "auth", cfg.EtcdUser != "")
+	return dcs.NewSealedStore(etcd, cfg.SealKey, cfg.SealOldKeys...)
 }
 
 // pickController selects the iRODS Controller at runtime.

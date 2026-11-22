@@ -19,6 +19,7 @@ package dcs
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"path"
 	"sync"
@@ -37,6 +38,9 @@ type EtcdStore struct {
 	endpoints  []string
 	zoneName   string
 	sessionTTL int
+	tlsConfig  *tls.Config
+	username   string
+	password   string
 
 	mu      sync.Mutex
 	client  *clientv3.Client
@@ -50,15 +54,39 @@ type EtcdStore struct {
 // share the same etcd cluster. sessionTTL is in seconds and defaults
 // to 15 if non-positive — matches what weft-ha-postgresql uses for
 // its leader-election lease.
-func NewEtcdStore(endpoints []string, zoneName string, sessionTTL int) *EtcdStore {
+//
+// sec carries the TLS material and credentials; a plaintext endpoint is
+// refused unless sec.AllowPlaintext is set (see EtcdSecurity.Check).
+func NewEtcdStore(endpoints []string, zoneName string, sessionTTL int, sec EtcdSecurity) (*EtcdStore, error) {
 	if sessionTTL <= 0 {
 		sessionTTL = 15
+	}
+	if err := sec.Check(endpoints); err != nil {
+		return nil, err
+	}
+	tc, err := sec.tlsConfig(endpoints)
+	if err != nil {
+		return nil, err
 	}
 	return &EtcdStore{
 		endpoints:  endpoints,
 		zoneName:   zoneName,
 		sessionTTL: sessionTTL,
-	}
+		tlsConfig:  tc,
+		username:   sec.Username,
+		password:   sec.Password,
+	}, nil
+}
+
+// dial opens the client with the store's TLS configuration and credentials.
+func (e *EtcdStore) dial() (*clientv3.Client, error) {
+	return clientv3.New(clientv3.Config{
+		Endpoints:   e.endpoints,
+		DialTimeout: 5 * time.Second,
+		TLS:         e.tlsConfig,
+		Username:    e.username,
+		Password:    e.password,
+	})
 }
 
 // connect lazy-opens the client + session. The session owns the lease
@@ -71,10 +99,7 @@ func (e *EtcdStore) connect(ctx context.Context) (*clientv3.Client, *concurrency
 		return e.client, e.session, nil
 	}
 	if e.client == nil {
-		cli, err := clientv3.New(clientv3.Config{
-			Endpoints:   e.endpoints,
-			DialTimeout: 5 * time.Second,
-		})
+		cli, err := e.dial()
 		if err != nil {
 			return nil, nil, fmt.Errorf("etcd client: %w", err)
 		}

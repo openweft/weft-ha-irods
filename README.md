@@ -85,9 +85,31 @@ module (or `systemd-creds encrypt`).
   key on first read. Drop the old flag once every node has restarted.
 - **Not covered**: an etcd member's WAL and snapshots written before the
   upgrade still hold the plaintext until the member is defragmented and the
-  snapshots are rotated; the agent's etcd connection has no TLS or
-  authentication of its own; a node (or anyone) that holds the cluster key
-  reads the keys.
+  snapshots are rotated; a node (or anyone) that holds the cluster key reads
+  the keys.
+
+### etcd connection: TLS and authentication
+
+Sealing protects confidentiality; TLS and authentication protect the
+integrity and availability of etcd (the bootstrap lock, the seeded keys).
+The agent **refuses a plaintext endpoint** (`http://`, or a bare `host:port`
+without TLS material) unless `--etcd-insecure-plaintext` is given, which is
+for a throwaway development etcd only.
+
+| Flag | Meaning |
+|---|---|
+| `--etcd https://host:2379,...` | `https://` endpoints (or bare `host:port` with `--etcd-ca`/`--etcd-cert`) |
+| `--etcd-ca <pem>` | CA that signed the etcd servers (default: system roots); public path |
+| `--etcd-cert <pem>` | client certificate for mutual TLS; public path |
+| `--etcd-client-key-from <ref>` | client private key (PEM), by secretsource reference, e.g. `systemd-creds:etcd-client-key`; needs `--etcd-cert` |
+| `--etcd-user <name>` | etcd user for etcd authentication |
+| `--etcd-password-from <ref>` | its password, by reference; needs `--etcd-user` |
+| `--etcd-insecure-plaintext` | allow plaintext etcd (development only) |
+
+TLS is 1.2 or later, and the server certificate is always verified. The key
+and the password are never accepted as plain flag values. Upgrading: switch
+the etcd members to TLS (and, for mutual TLS, `--client-cert-auth`), then
+restart the agents with the flags above.
 
 ### systemd credentials
 

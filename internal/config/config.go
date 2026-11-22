@@ -23,6 +23,15 @@ type Config struct {
 	// EtcdEndpoints lists the etcd endpoints backing the key store +
 	// bootstrap advisory lock.
 	EtcdEndpoints []string
+	// etcd transport security. CA and certificate are public paths; the client
+	// key (PEM) and the password come from --etcd-client-key-from and
+	// --etcd-password-from. EtcdInsecure allows plaintext (development only).
+	EtcdCA        string
+	EtcdCert      string
+	EtcdClientKey string
+	EtcdUser      string
+	EtcdPassword  string
+	EtcdInsecure  bool
 
 	// AdminPassword is the bootstrap password for the rodsadmin user.
 	// On first run, the bootstrap path passes this to `irods` /

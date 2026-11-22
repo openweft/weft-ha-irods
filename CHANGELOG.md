@@ -9,6 +9,13 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 
 ### Security
 
+- The etcd client supports TLS and mutual TLS (`--etcd-ca`, `--etcd-cert`,
+  `--etcd-client-key-from`) and etcd user authentication (`--etcd-user`,
+  `--etcd-password-from`); the key and the password are taken by
+  secretsource reference only. Breaking (pre-v1, MINOR): a plaintext
+  endpoint (`http://`, or `host:port` without TLS material) is now refused
+  unless `--etcd-insecure-plaintext` is given, so anyone on the network can
+  no longer read, delete or overwrite the keys by default.
 - The zone keys seeded into etcd (negotiation, control_plane, zone) are
   sealed with AES-256-GCM under a cluster key taken from
   `--etcd-seal-key-from` (required, >= 32 bytes, never stored in etcd).
