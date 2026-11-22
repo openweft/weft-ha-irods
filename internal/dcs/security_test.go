@@ -9,6 +9,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
+	"errors"
 	"math/big"
 	"net"
 	"os"
@@ -261,14 +262,38 @@ func TestEtcdSecurityBadMaterial(t *testing.T) {
 	if _, err := NewEtcdStore(eps, "i", 15, EtcdSecurity{CAFile: junk}); err == nil {
 		t.Error("a CA without PEM was accepted")
 	}
-	if _, err := NewEtcdStore(eps, "i", 15, EtcdSecurity{CAFile: filepath.Join(p.dir, "missing")}); err == nil {
-		t.Error("a missing CA was accepted")
+	if _, err := NewEtcdStore(eps, "i", 15, EtcdSecurity{CAFile: filepath.Join(p.dir, "missing")}); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("a missing CA: %v", err)
 	}
 	_, err := NewEtcdStore(eps, "i", 15, EtcdSecurity{CertFile: p.certFile, KeyPEM: "SUPER-SECRET-NOT-A-KEY"})
 	if err == nil || strings.Contains(err.Error(), "SUPER-SECRET") {
 		t.Errorf("a bad key must be refused without echoing it: %v", err)
 	}
-	if _, err := NewEtcdStore(eps, "i", 15, EtcdSecurity{CertFile: filepath.Join(p.dir, "missing"), KeyPEM: p.keyPEM}); err == nil {
-		t.Error("a missing certificate was accepted")
+	if _, err := NewEtcdStore(eps, "i", 15, EtcdSecurity{CertFile: filepath.Join(p.dir, "missing"), KeyPEM: p.keyPEM}); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("a missing certificate: %v", err)
+	}
+}
+
+func TestEtcdPlaintextBuildsNoTLSConfig(t *testing.T) {
+	e, err := NewEtcdStore([]string{"http://127.0.0.1:2379"}, "i", 15, EtcdSecurity{AllowPlaintext: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if e.tlsConfig != nil {
+		t.Fatal("a plaintext endpoint got a TLS config")
+	}
+	e, err = NewEtcdStore([]string{"https://127.0.0.1:2379"}, "i", 15, EtcdSecurity{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if e.tlsConfig == nil || e.tlsConfig.MinVersion < tls.VersionTLS12 {
+		t.Fatalf("https endpoint: tls config %+v", e.tlsConfig)
+	}
+}
+
+func TestEtcdRefusalNeverEchoesEndpointCredentials(t *testing.T) {
+	err := EtcdSecurity{}.Check([]string{"http://admin:hunter2@etcd:2379"})
+	if err == nil || strings.Contains(err.Error(), "hunter2") {
+		t.Fatalf("err = %v", err)
 	}
 }
