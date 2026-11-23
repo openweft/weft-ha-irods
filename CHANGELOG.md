@@ -7,6 +7,8 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-11-23
+
 ### Fixed
 
 - The zone keys were minted and sealed into etcd but never reached iRODS:
