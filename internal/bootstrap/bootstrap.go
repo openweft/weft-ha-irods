@@ -21,9 +21,10 @@ import (
 	"github.com/openweft/weft-ha-irods/internal/config"
 )
 
-// Result is what Run reports back to the reconcile loop. The agent
-// installs the three keys into /etc/irods/server_config.json once
-// they've been resolved (either minted here or read from DCS).
+// Result is what Run reports back to the reconcile loop. The loop hands
+// NegotiationKey and ZoneKey to internal/keyinstall, which merges them into
+// /etc/irods/server_config.json. iRODS 5 has no control-plane key property,
+// so ControlPlaneKey is held in the DCS but installed nowhere.
 type Result struct {
 	NegotiationKey  string
 	ControlPlaneKey string

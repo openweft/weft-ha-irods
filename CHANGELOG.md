@@ -7,6 +7,18 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 
 ## [Unreleased]
 
+### Fixed
+
+- The zone keys were minted and sealed into etcd but never reached iRODS:
+  nothing wrote them to `server_config.json`, although the code comments said
+  the agent did. `internal/keyinstall` now merges `negotiation_key` (32 chars
+  of `[A-Za-z0-9_]`) and `zone_key` (at most 49) into the file on every tick,
+  atomically, mode 0600, owned by the new `--server-config-owner` (default
+  `irods`; `--server-config` defaults to `/etc/irods/server_config.json`).
+  Symlinks, group/world-writable and foreign-owned files or directories are
+  refused. iRODS 5 has no control-plane key property, so that key is not
+  installed. A change is logged (never the values); iRODS must be restarted.
+
 ### Changed
 
 - The DCS layer (`internal/dcs`: etcd store, TLS, sealing) and the seal flag

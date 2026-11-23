@@ -91,6 +91,8 @@ func agentCmd() *cobra.Command {
 	f.StringVar(&cfg.ZoneName, "zone-name", "weftZone", "iRODS zone name")
 	f.StringVar(&cfg.DC, "dc", "", "failure domain (datacenter / cell)")
 	f.StringSliceVar(&cfg.EtcdEndpoints, "etcd", nil, "etcd endpoints (comma-separated)")
+	f.StringVar(&cfg.ServerConfig, "server-config", "/etc/irods/server_config.json", "iRODS server_config.json the zone keys are installed into")
+	f.StringVar(&cfg.ServerConfigOwner, "server-config-owner", "irods", "iRODS service account (user name or uid) that owns server_config.json")
 	f.StringVar(&cfg.ICATDBHost, "icat-db-host", "", "catalog Postgres host")
 	f.IntVar(&cfg.ICATDBPort, "icat-db-port", 5432, "catalog Postgres port")
 	f.StringVar(&cfg.ICATDBName, "icat-db-name", "ICAT", "catalog Postgres database name")
