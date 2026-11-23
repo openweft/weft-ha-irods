@@ -18,6 +18,7 @@ import (
 	"github.com/openweft/weft-ha-irods/internal/bootstrap"
 	"github.com/openweft/weft-ha-irods/internal/config"
 	"github.com/openweft/weft-ha-irods/internal/irods"
+	"github.com/openweft/weft-ha-irods/internal/keyinstall"
 )
 
 // Loop owns the reconcile state machine. Construct via New and call
@@ -36,6 +37,10 @@ type Loop struct {
 	// state triggers a re-bootstrap lookup, defending against an
 	// etcd outage taking down the role probe.
 	bootstrappedOnce bool
+
+	// install is the key installer ; nil means keyinstall.Install. A seam
+	// for tests, which have no iRODS account to own a file.
+	install func(path, owner string, k keyinstall.Keys) (bool, error)
 }
 
 // New returns a Loop wired to the given components.
@@ -60,17 +65,38 @@ func (l *Loop) Run(ctx context.Context) error {
 	}
 }
 
+// installKeys writes the negotiation and zone keys into server_config.json.
+// iRODS reads the file at start only, and this agent has no mechanism to
+// restart it, so a change is logged for the operator ; key values never are.
+func (l *Loop) installKeys(res bootstrap.Result) {
+	install := l.install
+	if install == nil {
+		install = keyinstall.Install
+	}
+	changed, err := install(l.cfg.ServerConfig, l.cfg.ServerConfigOwner,
+		keyinstall.Keys{Negotiation: res.NegotiationKey, Zone: res.ZoneKey})
+	switch {
+	case err != nil:
+		l.log.Warn("zone keys not installed into server_config.json ; will retry next tick",
+			"path", l.cfg.ServerConfig, "err", err)
+	case changed:
+		l.log.Info("zone keys installed into server_config.json ; iRODS reads them at start, restart it to apply",
+			"path", l.cfg.ServerConfig)
+	}
+}
+
 func (l *Loop) tick(ctx context.Context) {
-	// Bootstrap (idempotent ; cheap once seeded).
-	if !l.bootstrappedOnce {
-		if _, err := bootstrap.Run(ctx, l.cfg, l.store, l.log); err != nil {
-			l.log.Warn("bootstrap failed ; will retry next tick", "err", err)
-			// Keep going — the health probe is still useful even
-			// without bootstrap (operator may want to see WHY
-			// the zone won't come up).
-		} else {
-			l.bootstrappedOnce = true
-		}
+	// Bootstrap (idempotent ; cheap once seeded), then install the keys it
+	// resolved. Run on every tick so a key rotated in the DCS reaches
+	// server_config.json ; an etcd outage only logs and keeps the last file.
+	if res, err := bootstrap.Run(ctx, l.cfg, l.store, l.log); err != nil {
+		l.log.Warn("bootstrap failed ; will retry next tick", "err", err)
+		// Keep going — the health probe is still useful even
+		// without bootstrap (operator may want to see WHY
+		// the zone won't come up).
+	} else {
+		l.bootstrappedOnce = true
+		l.installKeys(res)
 	}
 
 	// Health probe.

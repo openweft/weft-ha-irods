@@ -54,6 +54,12 @@ type Config struct {
 	ControlPlaneKey string
 	ZoneKey         string
 
+	// ServerConfig is the iRODS server_config.json the agent installs the
+	// negotiation and zone keys into; ServerConfigOwner is the iRODS service
+	// account (user name or numeric uid) that must own it.
+	ServerConfig      string
+	ServerConfigOwner string
+
 	// SealKey is the cluster key that seals the zone keys before they are
 	// written to etcd (obtained via --etcd-seal-key-from, never stored in
 	// etcd). SealOldKeys are previous cluster keys, kept for rotation.
@@ -87,6 +93,10 @@ func (c Config) Validate() error {
 		return fmt.Errorf("at least one etcd endpoint is required")
 	case c.SealKey == "":
 		return fmt.Errorf("etcd-seal-key-from must be given: zone keys are never stored in etcd in plaintext")
+	case c.ServerConfig == "":
+		return fmt.Errorf("server-config must not be empty")
+	case c.ServerConfigOwner == "":
+		return fmt.Errorf("server-config-owner must not be empty")
 	case c.AdminPassword == "":
 		return fmt.Errorf("admin-password must not be empty")
 	case c.ICATDBHost == "":

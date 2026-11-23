@@ -8,7 +8,10 @@
 #
 # We pass through every CLI flag to weft-ha-irods. iRODS itself reads
 # /etc/irods/server_config.json (rendered by weft-init before the
-# microVM boots ; that's why the agent doesn't render it here).
+# microVM boots, without keys). The agent merges the negotiation and zone
+# keys from etcd into that file (internal/keyinstall) once it has them ;
+# iRODS reads them at start only, so a first boot needs one restart of
+# iRODS after the agent logs "zone keys installed".
 
 set -eu
 

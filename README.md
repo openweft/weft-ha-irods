@@ -30,9 +30,16 @@ than `weft-ha-postgresql`'s :
    negotiation / control-plane / zone keys. The keys are seeded into
    etcd so the other two providers pick them up instead of re-minting
    and ending up with a split-brain zone.
-2. **Config reconciliation** — `/etc/irods/server_config.json` is
-   templated from plugin inputs every tick ; an operator changing the
-   `tenant_network_cidrs` input takes effect without an SSH session.
+2. **Key installation** — on every tick the agent merges the negotiation
+   and zone keys it read from etcd into `/etc/irods/server_config.json`
+   (`negotiation_key`, `zone_key`; iRODS 5 has no control-plane key
+   property). The write is atomic (temp file, fsync, rename), mode `0600`,
+   owned by `--server-config-owner` (default `irods`); every other field is
+   kept. The agent refuses a file or directory that is a symlink, group- or
+   world-writable, or owned by someone other than that account, itself or
+   root, and never logs a key. iRODS reads the file at start only: restart
+   it after the agent logs `zone keys installed`. The file itself is
+   rendered by weft-init, without keys.
 3. **Health probe** — runs `irods-grid` against the local server and
    exposes `/ready` + `/zone` on `:8009` for the L4 Caddy active probe.
 

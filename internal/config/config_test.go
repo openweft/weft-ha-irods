@@ -7,18 +7,20 @@ import (
 
 func validConfig() Config {
 	return Config{
-		NodeName:       "irods-1",
-		ZoneName:       "weftZone",
-		DC:             "dc1",
-		EtcdEndpoints:  []string{"http://etcd:2379"},
-		SealKey:        "0123456789abcdef0123456789abcdef",
-		AdminPassword:  "x",
-		ICATDBHost:     "pg.weft",
-		ICATDBPort:     5432,
-		ICATDBUser:     "irods",
-		ICATDBPassword: "y",
-		APIAddr:        ":8009",
-		MetricsAddr:    ":9102",
+		NodeName:          "irods-1",
+		ZoneName:          "weftZone",
+		DC:                "dc1",
+		EtcdEndpoints:     []string{"http://etcd:2379"},
+		SealKey:           "0123456789abcdef0123456789abcdef",
+		ServerConfig:      "/etc/irods/server_config.json",
+		ServerConfigOwner: "irods",
+		AdminPassword:     "x",
+		ICATDBHost:        "pg.weft",
+		ICATDBPort:        5432,
+		ICATDBUser:        "irods",
+		ICATDBPassword:    "y",
+		APIAddr:           ":8009",
+		MetricsAddr:       ":9102",
 	}
 }
 
@@ -30,18 +32,20 @@ func TestValidate_AcceptsHappyPath(t *testing.T) {
 
 func TestValidate_RejectsMissingFields(t *testing.T) {
 	cases := map[string]func(*Config){
-		"node-name":      func(c *Config) { c.NodeName = "" },
-		"zone-name":      func(c *Config) { c.ZoneName = "" },
-		"dc":             func(c *Config) { c.DC = "" },
-		"etcd":           func(c *Config) { c.EtcdEndpoints = nil },
-		"etcd-seal-key":  func(c *Config) { c.SealKey = "" },
-		"admin-password": func(c *Config) { c.AdminPassword = "" },
-		"icat-db-host":   func(c *Config) { c.ICATDBHost = "" },
-		"icat-db-port":   func(c *Config) { c.ICATDBPort = 0 },
-		"icat-db-user":   func(c *Config) { c.ICATDBUser = "" },
-		"icat-db-pwd":    func(c *Config) { c.ICATDBPassword = "" },
-		"api-addr":       func(c *Config) { c.APIAddr = "" },
-		"metrics-addr":   func(c *Config) { c.MetricsAddr = "" },
+		"node-name":           func(c *Config) { c.NodeName = "" },
+		"zone-name":           func(c *Config) { c.ZoneName = "" },
+		"dc":                  func(c *Config) { c.DC = "" },
+		"etcd":                func(c *Config) { c.EtcdEndpoints = nil },
+		"etcd-seal-key":       func(c *Config) { c.SealKey = "" },
+		"server-config":       func(c *Config) { c.ServerConfig = "" },
+		"server-config-owner": func(c *Config) { c.ServerConfigOwner = "" },
+		"admin-password":      func(c *Config) { c.AdminPassword = "" },
+		"icat-db-host":        func(c *Config) { c.ICATDBHost = "" },
+		"icat-db-port":        func(c *Config) { c.ICATDBPort = 0 },
+		"icat-db-user":        func(c *Config) { c.ICATDBUser = "" },
+		"icat-db-pwd":         func(c *Config) { c.ICATDBPassword = "" },
+		"api-addr":            func(c *Config) { c.APIAddr = "" },
+		"metrics-addr":        func(c *Config) { c.MetricsAddr = "" },
 	}
 	for name, mutate := range cases {
 		t.Run(name, func(t *testing.T) {
