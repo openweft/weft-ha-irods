@@ -7,6 +7,14 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 
 ## [Unreleased]
 
+### Changed
+
+- The DCS layer (`internal/dcs`: etcd store, TLS, sealing) and the seal flag
+  helper (`internal/sealflag`) are gone; both agents now share
+  `github.com/openweft/weft-ha-dcs` and `secretflag.AddFrom`/`AddFromList`
+  (secretsource v0.12.0). No flag or behaviour change, except that a stored
+  seal body must be in canonical base64 (the shared parser refuses CR/LF).
+
 ### Security
 
 - The etcd client supports TLS and mutual TLS (`--etcd-ca`, `--etcd-cert`,
