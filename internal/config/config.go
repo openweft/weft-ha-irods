@@ -50,9 +50,8 @@ type Config struct {
 	// Zone keys. Empty values mean "the bootstrap leader mints one + seeds
 	// it via etcd" ; non-empty values are operator-provided pre-shared
 	// secrets the agent installs verbatim.
-	NegotiationKey  string
-	ControlPlaneKey string
-	ZoneKey         string
+	NegotiationKey string
+	ZoneKey        string
 
 	// ServerConfig is the iRODS server_config.json the agent installs the
 	// negotiation and zone keys into; ServerConfigOwner is the iRODS service

@@ -7,6 +7,23 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-11-23
+
+### Fixed
+
+- The control-plane key is no longer minted or stored: iRODS 5 has no such
+  property and nothing in the openweft clones reads one, so it was written
+  to etcd for nothing. A `control_plane` value an earlier release already
+  stored is left untouched (never read, never deleted; it is not re-sealed
+  either, so a value written by a pre-sealing release stays as it was).
+
+### Changed
+
+- `--control-plane-key` and `--control-plane-key-from` are accepted but
+  ignored; a given value prints a note on stderr (never the value).
+  `config.Config.ControlPlaneKey` and `bootstrap.Result.ControlPlaneKey` are
+  gone.
+
 ## [0.9.0] - 2026-11-23
 
 ### Fixed

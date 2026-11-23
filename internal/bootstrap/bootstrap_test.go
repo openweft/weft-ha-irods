@@ -28,9 +28,13 @@ func TestRun_LeaderMintsKeysAndSeedsDCS(t *testing.T) {
 	if !r.LeaderRanFirstBootstrap {
 		t.Error("first invocation on empty DCS should report LeaderRanFirstBootstrap=true")
 	}
-	if len(r.NegotiationKey) != 32 || len(r.ControlPlaneKey) != 32 || len(r.ZoneKey) != 32 {
-		t.Errorf("minted keys should be 32 hex chars, got %d/%d/%d",
-			len(r.NegotiationKey), len(r.ControlPlaneKey), len(r.ZoneKey))
+	if len(r.NegotiationKey) != 32 || len(r.ZoneKey) != 32 {
+		t.Errorf("minted keys should be 32 hex chars, got %d/%d",
+			len(r.NegotiationKey), len(r.ZoneKey))
+	}
+	// iRODS 5 has no control-plane key: none is minted any more.
+	if cp, _ := store.GetKey(context.Background(), keyPath("weftZone", "control_plane")); cp != "" {
+		t.Error("a control_plane key was minted")
 	}
 	// DCS should now hold them.
 	got, _ := store.GetKey(context.Background(), keyPath("weftZone", "negotiation"))
@@ -53,8 +57,12 @@ func TestRun_FollowerReadsExistingKeys(t *testing.T) {
 	if r.LeaderRanFirstBootstrap {
 		t.Error("follower should NOT report LeaderRanFirstBootstrap=true")
 	}
-	if r.NegotiationKey != "neg-key" || r.ControlPlaneKey != "cpk-key" || r.ZoneKey != "z-key" {
+	if r.NegotiationKey != "neg-key" || r.ZoneKey != "z-key" {
 		t.Errorf("follower should read peer-seeded keys verbatim, got %+v", r)
+	}
+	// A value an older release stored is left exactly as it was.
+	if cp, _ := store.GetKey(context.Background(), keyPath("weftZone", "control_plane")); cp != "cpk-key" {
+		t.Errorf("legacy control_plane value changed to %q", cp)
 	}
 }
 
@@ -62,13 +70,12 @@ func TestRun_OperatorProvidedKeysHonoured(t *testing.T) {
 	store := dcs.NewMemStore()
 	cfg := baseCfg()
 	cfg.NegotiationKey = "op-neg"
-	cfg.ControlPlaneKey = "op-cpk"
 	cfg.ZoneKey = "op-zone"
 	r, err := Run(context.Background(), cfg, store, discard())
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
-	if r.NegotiationKey != "op-neg" || r.ControlPlaneKey != "op-cpk" || r.ZoneKey != "op-zone" {
+	if r.NegotiationKey != "op-neg" || r.ZoneKey != "op-zone" {
 		t.Errorf("operator-provided keys should be used verbatim, got %+v", r)
 	}
 }

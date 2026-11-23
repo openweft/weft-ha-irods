@@ -71,6 +71,8 @@ func agentCmd() *cobra.Command {
 		cfg     config.Config
 		period  time.Duration
 		secrets []*secretflag.Binding
+
+		ignoredControlPlaneKey string
 	)
 	cmd := &cobra.Command{
 		Use:   "agent",
@@ -79,6 +81,9 @@ func agentCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if err := secretflag.Resolve(cmd.Context(), secrets...); err != nil {
 				return err
+			}
+			if ignoredControlPlaneKey != "" {
+				fmt.Fprintln(cmd.ErrOrStderr(), "weft-ha-irods: --control-plane-key is ignored: iRODS 5 has no control-plane key")
 			}
 			if err := cfg.Validate(); err != nil {
 				return fmt.Errorf("invalid config: %w", err)
@@ -106,7 +111,7 @@ func agentCmd() *cobra.Command {
 		secretflag.Add(cmd, "admin-password", &cfg.AdminPassword, "rodsadmin bootstrap password"),
 		secretflag.Add(cmd, "icat-db-password", &cfg.ICATDBPassword, "catalog Postgres password"),
 		secretflag.Add(cmd, "negotiation-key", &cfg.NegotiationKey, "iRODS native auth negotiation key (empty = mint + seed via etcd)"),
-		secretflag.Add(cmd, "control-plane-key", &cfg.ControlPlaneKey, "iRODS control-plane key (empty = mint + seed)"),
+		secretflag.Add(cmd, "control-plane-key", &ignoredControlPlaneKey, "ignored: iRODS 5 has no control-plane key (kept so existing invocations still start)"),
 		secretflag.Add(cmd, "zone-key", &cfg.ZoneKey, "inter-zone trust key (empty = mint + seed)"),
 	}
 	// The cluster key that seals the zone keys in etcd (>= 32 bytes,

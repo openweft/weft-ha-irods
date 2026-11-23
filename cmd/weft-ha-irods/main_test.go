@@ -32,6 +32,19 @@ func TestPlainAndFromAreExclusive(t *testing.T) {
 	}
 }
 
+func TestControlPlaneKeyIsIgnoredWithANote(t *testing.T) {
+	out, err := runRoot(t, "agent", "--control-plane-key", "SECRETVALUE")
+	if err == nil || !strings.Contains(err.Error(), "invalid config") {
+		t.Fatalf("the flag must still be accepted, then validation runs: %v", err)
+	}
+	if !strings.Contains(out, "--control-plane-key is ignored") {
+		t.Errorf("no ignored note: %q", out)
+	}
+	if strings.Contains(out, "SECRETVALUE") {
+		t.Error("the key value was printed")
+	}
+}
+
 func TestValidationStillRuns(t *testing.T) {
 	_, err := runRoot(t, "agent")
 	if err == nil || !strings.Contains(err.Error(), "invalid config") {
