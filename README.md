@@ -27,7 +27,7 @@ than `weft-ha-postgresql`'s :
 
 1. **Zone bootstrap** — the first provider to acquire an etcd advisory
    lock creates the iCAT schema in the shared Postgres + mints the
-   negotiation / control-plane / zone keys. The keys are seeded into
+   negotiation / zone keys. The keys are seeded into
    etcd so the other two providers pick them up instead of re-minting
    and ending up with a split-brain zone.
 2. **Key installation** — on every tick the agent merges the negotiation
@@ -57,13 +57,17 @@ What's intentionally **not** here :
 
 A flag value is visible in `ps` and in `/proc/<pid>/cmdline`, so every
 secret is taken **by reference**. Each of `--admin-password`,
-`--icat-db-password`, `--negotiation-key`, `--control-plane-key` and
-`--zone-key` has a `--<name>-from <ref>` twin, resolved with
+`--icat-db-password`, `--negotiation-key` and `--zone-key` has a `--<name>-from <ref>` twin, resolved with
 [go-authn/secretsource](https://github.com/go-authn/secretsource)
 (`systemd-creds:<name>`, `keychain:`, `keepassxc:`, `file:` — mode
 checked, at most 4096 bytes). The plain flag still works for one minor
 release, prints a deprecation warning on stderr, and is refused together
 with its twin. It will be removed in the next minor.
+
+`--control-plane-key` (and `--control-plane-key-from`) are deprecated no-ops
+since v0.9.1: iRODS 5 has no control-plane key, so the value is not used,
+and a given one prints a note on stderr. They are accepted only so existing
+invocations still start.
 
 The agent's only child processes are `irods-grid status --all` and
 `iadmin`; they receive no secret, neither by argv nor by environment
@@ -72,7 +76,7 @@ file in a private `0700` directory or by stdin.
 
 ### Zone keys in etcd are sealed
 
-The negotiation, control-plane and zone keys are shared between the providers
+The negotiation and zone keys are shared between the providers
 through etcd, but never stored there in plaintext. Every provider takes the
 same **cluster key** (at least 32 bytes) by reference with
 `--etcd-seal-key-from` (required), e.g. `systemd-creds:etcd-seal`, and seals

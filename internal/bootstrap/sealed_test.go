@@ -14,17 +14,19 @@ func TestLegacyPlaintextZoneIsResealedOnStart(t *testing.T) {
 	ctx := context.Background()
 	cfg := baseCfg()
 	raw := dcs.NewMemStore()
-	legacy := map[string]string{"negotiation": "NEG-plain", "control_plane": "CP-plain", "zone": "ZONE-plain"}
+	legacy := map[string]string{"negotiation": "NEG-plain", "zone": "ZONE-plain"}
 	for k, v := range legacy {
 		raw.PutKeyIfAbsent(ctx, keyPath(cfg.ZoneName, k), v)
 	}
+	// A control_plane value from an older release: still starts, left alone.
+	raw.PutKeyIfAbsent(ctx, keyPath(cfg.ZoneName, "control_plane"), "CP-plain")
 	sealed, err := dcs.NewSealedStore(raw, strings.Repeat("k", 32))
 	if err != nil {
 		t.Fatal(err)
 	}
 	for range 2 { // idempotent
 		r, err := Run(ctx, cfg, sealed, discard())
-		if err != nil || r.NegotiationKey != "NEG-plain" || r.ControlPlaneKey != "CP-plain" || r.ZoneKey != "ZONE-plain" {
+		if err != nil || r.NegotiationKey != "NEG-plain" || r.ZoneKey != "ZONE-plain" {
 			t.Fatalf("result %+v, err %v", r, err)
 		}
 	}
@@ -33,5 +35,8 @@ func TestLegacyPlaintextZoneIsResealedOnStart(t *testing.T) {
 		if strings.Contains(stored, v) {
 			t.Errorf("%s still plaintext in the store", k)
 		}
+	}
+	if cp, _ := raw.GetKey(ctx, keyPath(cfg.ZoneName, "control_plane")); cp != "CP-plain" {
+		t.Errorf("legacy control_plane value was touched: %q", cp)
 	}
 }

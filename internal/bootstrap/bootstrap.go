@@ -23,12 +23,12 @@ import (
 
 // Result is what Run reports back to the reconcile loop. The loop hands
 // NegotiationKey and ZoneKey to internal/keyinstall, which merges them into
-// /etc/irods/server_config.json. iRODS 5 has no control-plane key property,
-// so ControlPlaneKey is held in the DCS but installed nowhere.
+// /etc/irods/server_config.json. iRODS 5 has no control-plane key property, so
+// none is minted; a control_plane value an older release stored in the DCS is
+// left untouched and never read.
 type Result struct {
-	NegotiationKey  string
-	ControlPlaneKey string
-	ZoneKey         string
+	NegotiationKey string
+	ZoneKey        string
 	// LeaderRanFirstBootstrap is true when THIS provider did the iCAT
 	// schema creation + key minting. False means we observed an
 	// already-bootstrapped zone (keys read from DCS, schema present).
@@ -47,10 +47,9 @@ func keyPath(zone, name string) string {
 // short-circuit to a key read.
 func Run(ctx context.Context, cfg config.Config, store dcs.Store, log *slog.Logger) (Result, error) {
 	// Fast path : if the negotiation key is already in DCS, we
-	// assume the zone is bootstrapped. (Reading three keys would
-	// be marginally safer but the bootstrap path writes all three
-	// under the same lock — partial state implies a control-plane
-	// bug we should fail loudly on, not paper over.)
+	// assume the zone is bootstrapped. (Reading both keys would be
+	// marginally safer but the bootstrap path writes both under the
+	// same lock.)
 	existing, err := store.GetKey(ctx, keyPath(cfg.ZoneName, "negotiation"))
 	if err != nil {
 		return Result{}, fmt.Errorf("dcs GetKey(negotiation): %w", err)
@@ -94,19 +93,11 @@ func readExistingKeys(ctx context.Context, cfg config.Config, store dcs.Store) (
 	if err != nil {
 		return Result{}, fmt.Errorf("dcs GetKey(negotiation): %w", err)
 	}
-	cpk, err := store.GetKey(ctx, keyPath(cfg.ZoneName, "control_plane"))
-	if err != nil {
-		return Result{}, fmt.Errorf("dcs GetKey(control_plane): %w", err)
-	}
 	zk, err := store.GetKey(ctx, keyPath(cfg.ZoneName, "zone"))
 	if err != nil {
 		return Result{}, fmt.Errorf("dcs GetKey(zone): %w", err)
 	}
-	return Result{
-		NegotiationKey:  neg,
-		ControlPlaneKey: cpk,
-		ZoneKey:         zk,
-	}, nil
+	return Result{NegotiationKey: neg, ZoneKey: zk}, nil
 }
 
 // mintAndStore generates the three zone keys, applying operator-provided
@@ -128,26 +119,17 @@ func mintAndStore(ctx context.Context, cfg config.Config, store dcs.Store) (Resu
 	if err != nil {
 		return Result{}, err
 	}
-	cpk, err := pick(cfg.ControlPlaneKey)
-	if err != nil {
-		return Result{}, err
-	}
 	zk, err := pick(cfg.ZoneKey)
 	if err != nil {
 		return Result{}, err
 	}
 	for _, kv := range []struct{ k, v string }{
 		{"negotiation", neg},
-		{"control_plane", cpk},
 		{"zone", zk},
 	} {
 		if _, err := store.PutKeyIfAbsent(ctx, keyPath(cfg.ZoneName, kv.k), kv.v); err != nil {
 			return Result{}, fmt.Errorf("dcs PutKeyIfAbsent(%s): %w", kv.k, err)
 		}
 	}
-	return Result{
-		NegotiationKey:  neg,
-		ControlPlaneKey: cpk,
-		ZoneKey:         zk,
-	}, nil
+	return Result{NegotiationKey: neg, ZoneKey: zk}, nil
 }
