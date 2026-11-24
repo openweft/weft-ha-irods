@@ -97,6 +97,9 @@ func (l *Loop) tick(ctx context.Context) {
 	} else {
 		l.bootstrappedOnce = true
 		l.installKeys(res)
+		if err := bootstrap.RemoveUnusedControlPlaneKey(ctx, l.cfg, l.store, l.log); err != nil {
+			l.log.Warn("unused control-plane key not removed ; will retry next tick", "err", err)
+		}
 	}
 
 	// Health probe.

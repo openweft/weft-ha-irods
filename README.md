@@ -67,7 +67,12 @@ with its twin. It will be removed in the next minor.
 `--control-plane-key` (and `--control-plane-key-from`) are deprecated no-ops
 since v0.9.1: iRODS 5 has no control-plane key, so the value is not used,
 and a given one prints a note on stderr. They are accepted only so existing
-invocations still start.
+invocations still start. Since v0.9.2 the agent also deletes a `control_plane`
+key left in etcd by an earlier release (on the next tick, idempotent, never
+logging the value): a cluster from before sealing held it in plaintext. etcd
+keeps the old revisions on disk until the members are compacted and
+defragmented (`etcdctl defrag` on each member), as after the sealing
+migration; backups taken earlier still hold it.
 
 The agent's only child processes are `irods-grid status --all` and
 `iadmin`; they receive no secret, neither by argv nor by environment

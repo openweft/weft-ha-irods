@@ -37,6 +37,30 @@ type Result struct {
 	LeaderRanFirstBootstrap bool
 }
 
+// RemoveUnusedControlPlaneKey deletes the control_plane key that releases
+// before v0.9.1 stored in the DCS. iRODS 5 has no such property and nothing
+// reads the value, but a cluster from before sealing (<= v0.5.x) holds it in
+// plaintext. Idempotent: an absent key is a no-op, so it is safe on every
+// tick. The value is never read nor logged. A store that cannot delete is left
+// alone (nothing is lost: the value is unused).
+//
+// The DCS history keeps the old revisions until compaction and a
+// defragmentation of the etcd members; a sealed store compacts after a delete.
+func RemoveUnusedControlPlaneKey(ctx context.Context, cfg config.Config, store dcs.Store, log *slog.Logger) error {
+	d, ok := store.(dcs.Deleter)
+	if !ok {
+		return nil
+	}
+	existed, err := d.DeleteKey(ctx, keyPath(cfg.ZoneName, "control_plane"))
+	if err != nil {
+		return fmt.Errorf("dcs DeleteKey(control_plane): %w", err)
+	}
+	if existed {
+		log.Info("removed unused control-plane key", "zone", cfg.ZoneName)
+	}
+	return nil
+}
+
 // keyPath returns the DCS path for a named zone key.
 func keyPath(zone, name string) string {
 	return fmt.Sprintf("/weft/irods/%s/keys/%s", zone, name)
