@@ -7,6 +7,23 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 
 ## [Unreleased]
 
+## [0.9.2] - 2026-11-23
+
+### Fixed
+
+- A cluster that predates sealing (<= v0.5.x) kept the unused `control_plane`
+  key in etcd in PLAINTEXT, read by nothing. The agent now deletes it on the
+  next reconcile tick (sealed, plaintext or absent: absent is a no-op) and
+  logs `removed unused control-plane key`, never the value. The sealed store
+  compacts the key history right after the delete. etcd still holds the old
+  revisions on disk until the members are defragmented (same advice as the
+  sealing migration: compact, then `etcdctl defrag` on each member), and any
+  snapshot or backup taken before keeps the value.
+
+### Changed
+
+- Uses `github.com/openweft/weft-ha-dcs` v0.2.0 (`Deleter`).
+
 ## [0.9.1] - 2026-11-23
 
 ### Fixed
